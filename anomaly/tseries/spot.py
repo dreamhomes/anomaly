@@ -6,12 +6,13 @@
 @Author      : dreamhomes
 @Description : SPOT/DSPOT algorithms for univariate times series.
 """
-from scipy.optimize import minimize
-from math import log, floor
+from math import floor, log
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import tqdm
+from scipy.optimize import minimize
 
 # colors for plot
 deep_saffron = "#FF9933"
@@ -185,15 +186,10 @@ class SPOT:
         n_init = self.init_data.size
 
         S = np.sort(self.init_data)  # we sort X to get the empirical quantile
-        self.init_threshold = S[
-            int(level * n_init)
-        ]  # t is fixed for the whole algorithm
+        self.init_threshold = S[int(level * n_init)]  # t is fixed for the whole algorithm
 
         # initial peaks
-        self.peaks = (
-            self.init_data[self.init_data > self.init_threshold]
-            - self.init_threshold
-        )
+        self.peaks = self.init_data[self.init_data > self.init_threshold] - self.init_threshold
         self.Nt = self.peaks.size
         self.n = n_init
 
@@ -202,18 +198,8 @@ class SPOT:
             print("Number of peaks : %s" % self.Nt)
             print("Grimshaw maximum log-likelihood estimation ... ", end="")
 
-        g, s, l = self._grimshaw()
+        g, s, _ = self._grimshaw()
         self.extreme_quantile = self._quantile(g, s)
-
-        if verbose:
-            print("[done]")
-            print("\t" + chr(0x03B3) + " = " + str(g))
-            print("\t" + chr(0x03C3) + " = " + str(s))
-            print("\tL = " + str(l))
-            print(
-                "Extreme quantile (probability = %s): %s"
-                % (self.proba, self.extreme_quantile)
-            )
 
         return
 
@@ -232,7 +218,7 @@ class SPOT:
         npoints : int
             maximum number of roots to output
         method : str
-            'regular' : regular sample of the search interval, 'random' : uniform (distribution) sample of the search interval
+            'regular' : regular sample, 'random' : uniform (distribution) sample
 
         Returns
         ----------
@@ -289,10 +275,7 @@ class SPOT:
         n = Y.size
         if gamma != 0:
             tau = gamma / sigma
-            L = (
-                -n * log(sigma)
-                - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
-            )
+            L = -n * log(sigma) - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
         else:
             L = n * (1 + log(Y.mean()))
         return L
@@ -408,22 +391,21 @@ class SPOT:
     def run(self, with_alarm=True):
         """
         Run SPOT on the stream
-        
+
         Parameters
         ----------
         with_alarm : bool
-		    (default = True) If False, SPOT will adapt the threshold assuming \
-            there is no abnormal values
+        (default = True) If False, SPOT will adapt the threshold
 
 
         Returns
         ----------
         dict
             keys : 'thresholds' and 'alarms'
-            
+
             'thresholds' contains the extreme quantiles and 'alarms' contains \
             the indexes of the values which have triggered alarms
-            
+
         """
         if self.n > self.init_data.size:
             print(
@@ -445,27 +427,23 @@ class SPOT:
                     alarm.append(i)
                 # otherwise we add it in the peaks
                 else:
-                    self.peaks = np.append(
-                        self.peaks, self.data[i] - self.init_threshold
-                    )
+                    self.peaks = np.append(self.peaks, self.data[i] - self.init_threshold)
                     self.Nt += 1
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._grimshaw()
+                    g, s, _ = self._grimshaw()
                     self.extreme_quantile = self._quantile(g, s)
 
             # case where the value exceeds the initial threshold but not the alarm ones
             elif self.data[i] > self.init_threshold:
                 # we add it in the peaks
-                self.peaks = np.append(
-                    self.peaks, self.data[i] - self.init_threshold
-                )
+                self.peaks = np.append(self.peaks, self.data[i] - self.init_threshold)
                 self.Nt += 1
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._grimshaw()
+                g, s, _ = self._grimshaw()
                 self.extreme_quantile = self._quantile(g, s)
             else:
                 self.n += 1
@@ -606,14 +584,8 @@ class biSPOT:
                 )
             else:
                 s += "\t number of peaks  : %s\n" % self.Nt
-                s += (
-                    "\t upper extreme quantile : %s\n"
-                    % self.extreme_quantile["up"]
-                )
-                s += (
-                    "\t lower extreme quantile : %s\n"
-                    % self.extreme_quantile["down"]
-                )
+                s += "\t upper extreme quantile : %s\n" % self.extreme_quantile["up"]
+                s += "\t lower extreme quantile : %s\n" % self.extreme_quantile["down"]
                 s += "Algorithm run : No\n"
         return s
 
@@ -691,17 +663,12 @@ class biSPOT:
         n_init = self.init_data.size
 
         S = np.sort(self.init_data)  # we sort X to get the empirical quantile
-        self.init_threshold["up"] = S[
-            int(0.98 * n_init)
-        ]  # t is fixed for the whole algorithm
-        self.init_threshold["down"] = S[
-            int(0.02 * n_init)
-        ]  # t is fixed for the whole algorithm
+        self.init_threshold["up"] = S[int(0.98 * n_init)]  # t is fixed for the whole algorithm
+        self.init_threshold["down"] = S[int(0.02 * n_init)]  # t is fixed for the whole algorithm
 
         # initial peaks
         self.peaks["up"] = (
-            self.init_data[self.init_data > self.init_threshold["up"]]
-            - self.init_threshold["up"]
+            self.init_data[self.init_data > self.init_threshold["up"]] - self.init_threshold["up"]
         )
         self.peaks["down"] = -(
             self.init_data[self.init_data < self.init_threshold["down"]]
@@ -716,36 +683,13 @@ class biSPOT:
             print("Number of peaks : %s" % self.Nt)
             print("Grimshaw maximum log-likelihood estimation ... ", end="")
 
-        l = {"up": None, "down": None}
+        bounds = {"up": None, "down": None}
         for side in ["up", "down"]:
-            g, s, l[side] = self._grimshaw(side)
+            g, s, bounds[side] = self._grimshaw(side)
             self.extreme_quantile[side] = self._quantile(side, g, s)
             self.gamma[side] = g
             self.sigma[side] = s
 
-        ltab = 20
-        form = "\t" + "%20s" + "%20.2f" + "%20.2f"
-        if verbose:
-            print("[done]")
-            print(
-                "\t"
-                + "Parameters".rjust(ltab)
-                + "Upper".rjust(ltab)
-                + "Lower".rjust(ltab)
-            )
-            print("\t" + "-" * ltab * 3)
-            print(form % (chr(0x03B3), self.gamma["up"], self.gamma["down"]))
-            print(form % (chr(0x03C3), self.sigma["up"], self.sigma["down"]))
-            print(form % ("likelihood", l["up"], l["down"]))
-            print(
-                form
-                % (
-                    "Extreme quantile",
-                    self.extreme_quantile["up"],
-                    self.extreme_quantile["down"],
-                )
-            )
-            print("\t" + "-" * ltab * 3)
         return
 
     def _rootsFinder(fun, jac, bounds, npoints, method):
@@ -763,7 +707,7 @@ class biSPOT:
         npoints : int
             maximum number of roots to output
         method : str
-            'regular' : regular sample of the search interval, 'random' : uniform (distribution) sample of the search interval
+            'regular' : regular sample, 'random' : uniform (distribution) sample
 
         Returns
         ----------
@@ -820,10 +764,7 @@ class biSPOT:
         n = Y.size
         if gamma != 0:
             tau = gamma / sigma
-            L = (
-                -n * log(sigma)
-                - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
-            )
+            L = -n * log(sigma) - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
         else:
             L = n * (1 + log(Y.mean()))
         return L
@@ -900,9 +841,7 @@ class biSPOT:
         # 0 is always a solution so we initialize with it
         gamma_best = 0
         sigma_best = Ymean
-        ll_best = biSPOT._log_likelihood(
-            self.peaks[side], gamma_best, sigma_best
-        )
+        ll_best = biSPOT._log_likelihood(self.peaks[side], gamma_best, sigma_best)
 
         # we look for better candidates
         for z in zeros:
@@ -937,17 +876,13 @@ class biSPOT:
         if side == "up":
             r = self.n * self.proba / self.Nt[side]
             if gamma != 0:
-                return self.init_threshold["up"] + (sigma / gamma) * (
-                    pow(r, -gamma) - 1
-                )
+                return self.init_threshold["up"] + (sigma / gamma) * (pow(r, -gamma) - 1)
             else:
                 return self.init_threshold["up"] - sigma * log(r)
         elif side == "down":
             r = self.n * self.proba / self.Nt[side]
             if gamma != 0:
-                return self.init_threshold["down"] - (sigma / gamma) * (
-                    pow(r, -gamma) - 1
-                )
+                return self.init_threshold["down"] - (sigma / gamma) * (pow(r, -gamma) - 1)
             else:
                 return self.init_threshold["down"] + sigma * log(r)
         else:
@@ -956,22 +891,19 @@ class biSPOT:
     def run(self, with_alarm=True):
         """
         Run biSPOT on the stream
-        
+
         Parameters
         ----------
         with_alarm : bool
-		    (default = True) If False, SPOT will adapt the threshold assuming \
-            there is no abnormal values
-
 
         Returns
         ----------
         dict
             keys : 'upper_thresholds', 'lower_thresholds' and 'alarms'
-            
+
             '***-thresholds' contains the extreme quantiles and 'alarms' contains \
             the indexes of the values which have triggered alarms
-            
+
         """
         if self.n > self.init_data.size:
             print(
@@ -1002,7 +934,7 @@ class biSPOT:
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._grimshaw("up")
+                    g, s, _ = self._grimshaw("up")
                     self.extreme_quantile["up"] = self._quantile("up", g, s)
 
             # case where the value exceeds the initial threshold but not the alarm ones
@@ -1015,7 +947,7 @@ class biSPOT:
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._grimshaw("up")
+                g, s, _ = self._grimshaw("up")
                 self.extreme_quantile["up"] = self._quantile("up", g, s)
 
             elif self.data[i] < self.extreme_quantile["down"]:
@@ -1032,7 +964,7 @@ class biSPOT:
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._grimshaw("down")
+                    g, s, _ = self._grimshaw("down")
                     self.extreme_quantile["down"] = self._quantile("down", g, s)
 
             # case where the value exceeds the initial threshold but not the alarm ones
@@ -1046,7 +978,7 @@ class biSPOT:
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._grimshaw("down")
+                g, s, _ = self._grimshaw("down")
                 self.extreme_quantile["down"] = self._quantile("down", g, s)
             else:
                 self.n += 1
@@ -1086,16 +1018,12 @@ class biSPOT:
 
         if "upper_thresholds" in K:
             thup = run_results["upper_thresholds"]
-            (uth_fig,) = plt.plot(
-                x, thup, color=deep_saffron, lw=2, ls="dashed"
-            )
+            (uth_fig,) = plt.plot(x, thup, color=deep_saffron, lw=2, ls="dashed")
             fig.append(uth_fig)
 
         if "lower_thresholds" in K:
             thdown = run_results["lower_thresholds"]
-            (lth_fig,) = plt.plot(
-                x, thdown, color=deep_saffron, lw=2, ls="dashed"
-            )
+            (lth_fig,) = plt.plot(x, thdown, color=deep_saffron, lw=2, ls="dashed")
             fig.append(lth_fig)
 
         if with_alarm and ("alarms" in K):
@@ -1280,9 +1208,7 @@ class dSPOT:
         T = self.init_data[self.depth :] - M[:-1]  # new variable
 
         S = np.sort(T)  # we sort X to get the empirical quantile
-        self.init_threshold = S[
-            int(0.98 * n_init)
-        ]  # t is fixed for the whole algorithm
+        self.init_threshold = S[int(0.98 * n_init)]  # t is fixed for the whole algorithm
 
         # initial peaks
         self.peaks = T[T > self.init_threshold] - self.init_threshold
@@ -1294,18 +1220,8 @@ class dSPOT:
             print("Number of peaks : %s" % self.Nt)
             print("Grimshaw maximum log-likelihood estimation ... ", end="")
 
-        g, s, l = self._grimshaw()
+        g, s, _ = self._grimshaw()
         self.extreme_quantile = self._quantile(g, s)
-
-        if verbose:
-            print("[done]")
-            print("\t" + chr(0x03B3) + " = " + str(g))
-            print("\t" + chr(0x03C3) + " = " + str(s))
-            print("\tL = " + str(l))
-            print(
-                "Extreme quantile (probability = %s): %s"
-                % (self.proba, self.extreme_quantile)
-            )
 
         return
 
@@ -1324,7 +1240,7 @@ class dSPOT:
         npoints : int
             maximum number of roots to output
         method : str
-            'regular' : regular sample of the search interval, 'random' : uniform (distribution) sample of the search interval
+            'regular' : regular sample, 'random' : uniform (distribution) sample
 
         Returns
         ----------
@@ -1381,10 +1297,7 @@ class dSPOT:
         n = Y.size
         if gamma != 0:
             tau = gamma / sigma
-            L = (
-                -n * log(sigma)
-                - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
-            )
+            L = -n * log(sigma) - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
         else:
             L = n * (1 + log(Y.mean()))
         return L
@@ -1500,22 +1413,19 @@ class dSPOT:
     def run(self, with_alarm=True):
         """
         Run biSPOT on the stream
-        
+
         Parameters
         ----------
         with_alarm : bool
-		    (default = True) If False, SPOT will adapt the threshold assuming \
-            there is no abnormal values
-
 
         Returns
         ----------
         dict
             keys : 'upper_thresholds', 'lower_thresholds' and 'alarms'
-            
+
             '***-thresholds' contains the extreme quantiles and 'alarms' contains \
             the indexes of the values which have triggered alarms
-            
+
         """
         if self.n > self.init_data.size:
             print(
@@ -1540,28 +1450,24 @@ class dSPOT:
                     alarm.append(i)
                 # otherwise we add it in the peaks
                 else:
-                    self.peaks = np.append(
-                        self.peaks, self.data[i] - Mi - self.init_threshold
-                    )
+                    self.peaks = np.append(self.peaks, self.data[i] - Mi - self.init_threshold)
                     self.Nt += 1
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._grimshaw()
+                    g, s, _ = self._grimshaw()
                     self.extreme_quantile = self._quantile(g, s)  # + Mi
                     W = np.append(W[1:], self.data[i])
 
             # case where the value exceeds the initial threshold but not the alarm ones
             elif (self.data[i] - Mi) > self.init_threshold:
                 # we add it in the peaks
-                self.peaks = np.append(
-                    self.peaks, self.data[i] - Mi - self.init_threshold
-                )
+                self.peaks = np.append(self.peaks, self.data[i] - Mi - self.init_threshold)
                 self.Nt += 1
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._grimshaw()
+                g, s, _ = self._grimshaw()
                 self.extreme_quantile = self._quantile(g, s)  # + Mi
                 W = np.append(W[1:], self.data[i])
             else:
@@ -1707,14 +1613,8 @@ class bidSPOT:
                 )
             else:
                 s += "\t number of peaks  : %s\n" % self.Nt
-                s += (
-                    "\t upper extreme quantile : %s\n"
-                    % self.extreme_quantile["up"]
-                )
-                s += (
-                    "\t lower extreme quantile : %s\n"
-                    % self.extreme_quantile["down"]
-                )
+                s += "\t upper extreme quantile : %s\n" % self.extreme_quantile["up"]
+                s += "\t lower extreme quantile : %s\n" % self.extreme_quantile["down"]
                 s += "Algorithm run : No\n"
         return s
 
@@ -1795,20 +1695,12 @@ class bidSPOT:
         T = self.init_data[self.depth :] - M[:-1]  # new variable
 
         S = np.sort(T)  # we sort T to get the empirical quantile
-        self.init_threshold["up"] = S[
-            int(0.98 * n_init)
-        ]  # t is fixed for the whole algorithm
-        self.init_threshold["down"] = S[
-            int(0.02 * n_init)
-        ]  # t is fixed for the whole algorithm
+        self.init_threshold["up"] = S[int(0.98 * n_init)]  # t is fixed for the whole algorithm
+        self.init_threshold["down"] = S[int(0.02 * n_init)]  # t is fixed for the whole algorithm
 
         # initial peaks
-        self.peaks["up"] = (
-            T[T > self.init_threshold["up"]] - self.init_threshold["up"]
-        )
-        self.peaks["down"] = -(
-            T[T < self.init_threshold["down"]] - self.init_threshold["down"]
-        )
+        self.peaks["up"] = T[T > self.init_threshold["up"]] - self.init_threshold["up"]
+        self.peaks["down"] = -(T[T < self.init_threshold["down"]] - self.init_threshold["down"])
         self.Nt["up"] = self.peaks["up"].size
         self.Nt["down"] = self.peaks["down"].size
         self.n = n_init
@@ -1818,36 +1710,13 @@ class bidSPOT:
             print("Number of peaks : %s" % self.Nt)
             print("Grimshaw maximum log-likelihood estimation ... ", end="")
 
-        l = {"up": None, "down": None}
+        bounds = {"up": None, "down": None}
         for side in ["up", "down"]:
-            g, s, l[side] = self._grimshaw(side)
+            g, s, bounds[side] = self._grimshaw(side)
             self.extreme_quantile[side] = self._quantile(side, g, s)
             self.gamma[side] = g
             self.sigma[side] = s
 
-        ltab = 20
-        form = "\t" + "%20s" + "%20.2f" + "%20.2f"
-        if verbose:
-            print("[done]")
-            print(
-                "\t"
-                + "Parameters".rjust(ltab)
-                + "Upper".rjust(ltab)
-                + "Lower".rjust(ltab)
-            )
-            print("\t" + "-" * ltab * 3)
-            print(form % (chr(0x03B3), self.gamma["up"], self.gamma["down"]))
-            print(form % (chr(0x03C3), self.sigma["up"], self.sigma["down"]))
-            print(form % ("likelihood", l["up"], l["down"]))
-            print(
-                form
-                % (
-                    "Extreme quantile",
-                    self.extreme_quantile["up"],
-                    self.extreme_quantile["down"],
-                )
-            )
-            print("\t" + "-" * ltab * 3)
         return
 
     def _rootsFinder(fun, jac, bounds, npoints, method):
@@ -1865,7 +1734,7 @@ class bidSPOT:
         npoints : int
             maximum number of roots to output
         method : str
-            'regular' : regular sample of the search interval, 'random' : uniform (distribution) sample of the search interval
+            'regular' : regular sample, 'random' : uniform (distribution) sample
 
         Returns
         ----------
@@ -1922,10 +1791,7 @@ class bidSPOT:
         n = Y.size
         if gamma != 0:
             tau = gamma / sigma
-            L = (
-                -n * log(sigma)
-                - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
-            )
+            L = -n * log(sigma) - (1 + (1 / gamma)) * (np.log(1 + tau * Y)).sum()
         else:
             L = n * (1 + log(Y.mean()))
         return L
@@ -2002,9 +1868,7 @@ class bidSPOT:
         # 0 is always a solution so we initialize with it
         gamma_best = 0
         sigma_best = Ymean
-        ll_best = bidSPOT._log_likelihood(
-            self.peaks[side], gamma_best, sigma_best
-        )
+        ll_best = bidSPOT._log_likelihood(self.peaks[side], gamma_best, sigma_best)
 
         # we look for better candidates
         for z in zeros:
@@ -2039,17 +1903,13 @@ class bidSPOT:
         if side == "up":
             r = self.n * self.proba / self.Nt[side]
             if gamma != 0:
-                return self.init_threshold["up"] + (sigma / gamma) * (
-                    pow(r, -gamma) - 1
-                )
+                return self.init_threshold["up"] + (sigma / gamma) * (pow(r, -gamma) - 1)
             else:
                 return self.init_threshold["up"] - sigma * log(r)
         elif side == "down":
             r = self.n * self.proba / self.Nt[side]
             if gamma != 0:
-                return self.init_threshold["down"] - (sigma / gamma) * (
-                    pow(r, -gamma) - 1
-                )
+                return self.init_threshold["down"] - (sigma / gamma) * (pow(r, -gamma) - 1)
             else:
                 return self.init_threshold["down"] + sigma * log(r)
         else:
@@ -2058,11 +1918,11 @@ class bidSPOT:
     def run(self, with_alarm=True, plot=True):
         """
         Run biDSPOT on the stream
-        
+
         Parameters
         ----------
         with_alarm : bool
-		    (default = True) If False, SPOT will adapt the threshold assuming \
+        (default = True) If False, SPOT will adapt the threshold assuming \
             there is no abnormal values
 
 
@@ -2070,10 +1930,10 @@ class bidSPOT:
         ----------
         dict
             keys : 'upper_thresholds', 'lower_thresholds' and 'alarms'
-            
+
             '***-thresholds' contains the extreme quantiles and 'alarms' contains \
             the indexes of the values which have triggered alarms
-            
+
         """
         if self.n > self.init_data.size:
             print(
@@ -2100,27 +1960,23 @@ class bidSPOT:
                     alarm.append(i)
                 # otherwise we add it in the peaks
                 else:
-                    self.peaks["up"] = np.append(
-                        self.peaks["up"], Ni - self.init_threshold["up"]
-                    )
+                    self.peaks["up"] = np.append(self.peaks["up"], Ni - self.init_threshold["up"])
                     self.Nt["up"] += 1
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._grimshaw("up")
+                    g, s, _ = self._grimshaw("up")
                     self.extreme_quantile["up"] = self._quantile("up", g, s)
                     W = np.append(W[1:], self.data[i])
 
             # case where the value exceeds the initial threshold but not the alarm ones
             elif Ni > self.init_threshold["up"]:
                 # we add it in the peaks
-                self.peaks["up"] = np.append(
-                    self.peaks["up"], Ni - self.init_threshold["up"]
-                )
+                self.peaks["up"] = np.append(self.peaks["up"], Ni - self.init_threshold["up"])
                 self.Nt["up"] += 1
                 self.n += 1
                 # and we update the thresholds
-                g, s, l = self._grimshaw("up")
+                g, s, _ = self._grimshaw("up")
                 self.extreme_quantile["up"] = self._quantile("up", g, s)
                 W = np.append(W[1:], self.data[i])
 
@@ -2137,7 +1993,7 @@ class bidSPOT:
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._grimshaw("down")
+                    g, s, _ = self._grimshaw("down")
                     self.extreme_quantile["down"] = self._quantile("down", g, s)
                     W = np.append(W[1:], self.data[i])
 
@@ -2151,19 +2007,15 @@ class bidSPOT:
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._grimshaw("down")
+                g, s, _ = self._grimshaw("down")
                 self.extreme_quantile["down"] = self._quantile("down", g, s)
                 W = np.append(W[1:], self.data[i])
             else:
                 self.n += 1
                 W = np.append(W[1:], self.data[i])
 
-            thup.append(
-                self.extreme_quantile["up"] + Mi
-            )  # upper thresholds record
-            thdown.append(
-                self.extreme_quantile["down"] + Mi
-            )  # lower thresholds record
+            thup.append(self.extreme_quantile["up"] + Mi)  # upper thresholds record
+            thdown.append(self.extreme_quantile["down"] + Mi)  # lower thresholds record
 
         return {
             "upper_thresholds": thup,
@@ -2197,16 +2049,12 @@ class bidSPOT:
 
         if "upper_thresholds" in K:
             thup = run_results["upper_thresholds"]
-            (uth_fig,) = plt.plot(
-                x, thup, color=deep_saffron, lw=2, ls="dashed"
-            )
+            (uth_fig,) = plt.plot(x, thup, color=deep_saffron, lw=2, ls="dashed")
             fig.append(uth_fig)
 
         if "lower_thresholds" in K:
             thdown = run_results["lower_thresholds"]
-            (lth_fig,) = plt.plot(
-                x, thdown, color=deep_saffron, lw=2, ls="dashed"
-            )
+            (lth_fig,) = plt.plot(x, thdown, color=deep_saffron, lw=2, ls="dashed")
             fig.append(lth_fig)
 
         if with_alarm and ("alarms" in K):

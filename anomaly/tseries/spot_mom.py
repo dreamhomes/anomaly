@@ -7,12 +7,12 @@
 @Description : MOM optimization
 """
 
+from math import log
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from math import log, floor
 import tqdm
-from scipy.optimize import minimize
 
 # colors for plot
 deep_saffron = "#FF9933"
@@ -212,26 +212,13 @@ class momSPOT:
             print("Number of peaks : %s" % self.Nt)
             # print('Grimshaw maximum log-likelihood estimation ... ', end = '')
 
-        l = {"up": None, "down": None}
+        bounds = {"up": None, "down": None}
         for side in ["up", "down"]:
-            g, s, l[side] = self._MOM(side)
+            g, s, bounds[side] = self._MOM(side)
             self.extreme_quantile[side] = self._quantile(side, g, s)
             self.gamma[side] = g
             self.sigma[side] = s
 
-        ltab = 20
-        form = "\t" + "%20s" + "%20.2f" + "%20.2f"
-        """
-        if verbose:
-            print('[done]')
-            print('\t' + 'Parameters'.rjust(ltab) + 'Upper'.rjust(ltab) + 'Lower'.rjust(ltab))
-            print('\t' + '-'*ltab*3)
-            print(form % (chr(0x03B3),self.gamma['up'],self.gamma['down']))
-            print(form % (chr(0x03C3),self.sigma['up'],self.sigma['down']))
-            print(form % ('likelihood',l['up'],l['down']))
-            print(form % ('Extreme quantile',self.extreme_quantile['up'],self.extreme_quantile['down']))
-            print('\t' + '-'*ltab*3)
-        """
         return
 
     def _MOM(self, side, epsilon=1e-8, n_points=10):
@@ -282,19 +269,15 @@ class momSPOT:
         Parameters
         ----------
         with_alarm : bool
-            (default = True) If False, SPOT will adapt the threshold assuming there is no abnormal values.
+            If False, SPOT will adapt the threshold assuming there is no abnormal values.
         Returns
         ----------
         dict
             keys : 'upper_thresholds', 'lower_thresholds' and 'alarms'
 
-            '***-thresholds' contains the extreme quantiles and 'alarms' contains the indexes of the values which have triggered alarms.
-
         """
         if self.n > self.init_data.size:
-            print(
-                "Warning : the algorithm seems to have already been run, you should initialize before running again"
-            )
+            print("Warning :you should initialize before running again")
             return {}
 
         # list of the thresholds
@@ -318,7 +301,7 @@ class momSPOT:
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._MOM("up")
+                    g, s, _ = self._MOM("up")
                     self.extreme_quantile["up"] = self._quantile("up", g, s)
 
             # case where the value exceeds the initial threshold but not the alarm ones
@@ -331,7 +314,7 @@ class momSPOT:
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._MOM("up")
+                g, s, _ = self._MOM("up")
                 self.extreme_quantile["up"] = self._quantile("up", g, s)
 
             elif self.data[i] < self.extreme_quantile["down"]:
@@ -347,7 +330,7 @@ class momSPOT:
                     self.n += 1
                     # and we update the thresholds
 
-                    g, s, l = self._MOM("down")
+                    g, s, _ = self._MOM("down")
                     self.extreme_quantile["down"] = self._quantile("down", g, s)
 
             # case where the value exceeds the initial threshold but not the alarm ones
@@ -360,7 +343,7 @@ class momSPOT:
                 self.n += 1
                 # and we update the thresholds
 
-                g, s, l = self._MOM("down")
+                g, s, _ = self._MOM("down")
                 self.extreme_quantile["down"] = self._quantile("down", g, s)
             else:
                 self.n += 1
