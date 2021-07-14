@@ -6,13 +6,11 @@
 @Author      : dreamhomes
 @Description : SVDD anomaly detection
 """
-# -*- coding: utf-8 -*-
-
+import time
 
 import numpy as np
-from cvxopt import matrix, solvers
 import sklearn.metrics.pairwise as smp
-import time
+from cvxopt import matrix, solvers
 
 
 class SVDD:
